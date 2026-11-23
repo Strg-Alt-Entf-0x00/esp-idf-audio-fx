@@ -1,0 +1,59 @@
+menu "ESP-IDF Audio FX"
+
+    config AUDIO_FX_ENABLE_REVERB
+        bool "Build the Freeverb-style reverb"
+        default n
+        help
+            Include the native float reverb implementation in the component.
+            Enable only when the application uses reverb to avoid adding it to
+            the application binary unnecessarily.
+
+    config AUDIO_FX_ENABLE_CHORUS
+        bool "Build the modulated-delay chorus"
+        default n
+        help
+            Include the native float chorus implementation in the component.
+            Enable only when the application uses chorus to avoid adding it to
+            the application binary unnecessarily.
+
+    config AUDIO_FX_ENABLE_EQUALIZER
+        bool "Build the five-band parametric equalizer"
+        default n
+        help
+            Include the native five-band parametric equalizer in the component.
+            Enable only when the application uses the equalizer to avoid
+            adding it to the application binary unnecessarily.
+
+    config AUDIO_FX_ENABLE_DELAY
+        bool "Build the feedback delay"
+        default n
+        help
+            Include the mono/stereo floating-point delay effect. The delay
+            allocates up to one second of audio storage per configured channel.
+
+    config AUDIO_FX_ENABLE_FLANGER
+        bool "Build the flanger"
+        default n
+        help
+            Include the modulated short-delay flanger effect.
+
+    config AUDIO_FX_ENABLE_BITCRUSHER
+        bool "Build the bitcrusher"
+        default n
+        help
+            Include the bit-depth and sample-hold reduction effect.
+
+    config AUDIO_FX_ENABLE_COMPRESSOR
+        bool "Build the compressor"
+        default n
+        help
+            Include the linked-channel feed-forward dynamics compressor.
+
+    config AUDIO_FX_ENABLE_LIMITER
+        bool "Build the look-ahead limiter"
+        default n
+        help
+            Include the linked-channel sample-peak limiter with a fixed
+            5 ms look-ahead buffer.
+
+endmenu
