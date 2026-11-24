@@ -15,6 +15,7 @@
 *.bak
 *.lock
 *.log
+.logs/
 *.tmp
 *.temp
 .clangd
