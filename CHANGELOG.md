@@ -1,3 +1,9 @@
+## Unreleased
+
+- Reorganized the browser console as the modular Audio FX Studio in
+  `tools-web/`, with Web Serial controls for compatible firmware and an
+  offline simulator clearly distinguished from device telemetry and audio.
+
 ## 0.1.0 - 2026-11-02
 
 - Establish the initial ESP-IDF component and block-processing C++ API.

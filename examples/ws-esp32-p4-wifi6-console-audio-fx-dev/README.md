@@ -59,7 +59,7 @@ accept speaker volume from `-60` through `0 dB`.
 
 ## Web Studio application
 
-Open `tools-web/audio_fx_studio.html` directly in any Web Serial-capable browser (Google Chrome, Microsoft Edge, Opera). No installation, Python environment, or drivers required.
+Open `tools-web/index.html` directly in any Web Serial-capable browser (Google Chrome, Microsoft Edge, Opera). No installation, Python environment, or drivers required.
 
 Click **Connect ESP32**, select your serial port at 115200 baud, and the studio automatically handshakes with the firmware. The interface provides:
 

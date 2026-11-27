@@ -2,25 +2,40 @@ import re
 import unittest
 from pathlib import Path
 
-HTML_PATH = (
-    Path(__file__).resolve().parent.parent / "tools-web" / "audio_fx_studio.html"
-)
+HTML_PATH = Path(__file__).resolve().parent.parent / "tools-web" / "index.html"
 
 
 class TestWebAudioFxStudio(unittest.TestCase):
     def setUp(self):
         self.assertTrue(HTML_PATH.exists(), f"File does not exist: {HTML_PATH}")
-        self.content = HTML_PATH.read_text(encoding="utf-8")
+        self.page = HTML_PATH.read_text(encoding="utf-8")
+        self.assets = sorted(
+            path
+            for folder in ("css", "js")
+            for path in (HTML_PATH.parent / folder).glob("*")
+            if path.is_file()
+        )
+        self.content = self.page + "\n" + "\n".join(
+            path.read_text(encoding="utf-8") for path in self.assets
+        )
 
     def test_file_is_self_contained_single_page(self):
-        """Verifies that the HTML file has zero external CDN dependencies."""
+        """Verifies local assets resolve and no external CDN dependencies are used."""
         self.assertNotIn("http://", self.content)
-        # Check that there are no external script tags
-        external_scripts = re.findall(r'<script\s+[^>]*src=["\']http', self.content, re.IGNORECASE)
+        external_scripts = re.findall(
+            r'<script\s+[^>]*src=["\']https?://', self.page, re.IGNORECASE
+        )
         self.assertEqual(len(external_scripts), 0, "External scripts found")
-        # Check that there are no external stylesheets
-        external_styles = re.findall(r'<link\s+[^>]*href=["\']http', self.content, re.IGNORECASE)
+        external_styles = re.findall(
+            r'<link\s+[^>]*href=["\']https?://', self.page, re.IGNORECASE
+        )
         self.assertEqual(len(external_styles), 0, "External stylesheets found")
+        local_assets = re.findall(
+            r'(?:src|href)=["\']([^"\']+)["\']', self.page, re.IGNORECASE
+        )
+        self.assertTrue(local_assets, "Expected local CSS and JavaScript assets")
+        for asset in local_assets:
+            self.assertTrue((HTML_PATH.parent / asset).is_file(), f"Missing asset: {asset}")
 
     def test_all_eight_dsp_effects_present(self):
         """Verifies that all 8 DSP effects are present in the studio metadata."""

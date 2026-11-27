@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio FX Studio · ESP32-P4 Real-Time DSP Hardware Console</title>
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/console.css">
+</head>
+<body>
+
+  <!-- ========================================================================
+   * 1. TOP HEADER NAVIGATION
+   * ======================================================================== -->
+  <header class="app-header">
+    <div class="brand-section">
+      <span class="brand-title">AUDIO FX STUDIO</span>
+      <span class="brand-sub">Real-Time DSP Effects Rack</span>
+    </div>
+
+    <div class="header-actions">
+      <!-- WebSerial Connect Button -->
+      <button class="icon-btn" id="connectBtn" data-tooltip="Connect ESP32 (115200 Baud)" aria-label="Connect ESP32" onclick="toggleConnection()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v6m0 0l3-3m-3 3L9 5M5 11h14M7 11v5a5 5 0 0010 0v-5"></path>
+        </svg>
+      </button>
+
+      <!-- Toggle Terminal Drawer -->
+      <button class="icon-btn" id="btnToggleDrawer" data-tooltip="Toggle Serial Console" aria-label="Toggle Serial Console">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+      </button>
+
+      <!-- Help Modal Dialog -->
+      <button class="icon-btn" id="btnHelp" data-tooltip="Help &amp; DSP Documentation" aria-label="Open Help">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </button>
+
+      <!-- Separator -->
+      <div class="header-divider"></div>
+
+      <!-- Master Speaker Output Volume (Mute, Slider, dB) -->
+      <div class="header-vol-group">
+        <button class="icon-btn" id="btnMuteVol" data-tooltip="Quick Mute / Unmute" aria-label="Mute Volume" onclick="toggleMuteVolume()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+        </button>
+        <input type="range" class="header-vol-slider" id="volumeSlider" min="-60" max="0" step="1" value="-30" oninput="onVolumeInput(this.value)" aria-label="Master Speaker Volume" data-tooltip="Speaker Volume (-60..0 dB)">
+        <span class="header-vol-val" id="volumeVal">-30.0 dB</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+   * 2. MAIN APP LAYOUT (Stage + 560px Control Panel)
+   * ======================================================================== -->
+  <div class="app-layout">
+
+    <!-- LEFT STAGE: Visualizers & DSP Effect Rack -->
+    <main class="stage-area">
+
+      <!-- Signal Scope & Level Telemetry Card -->
+      <div class="card">
+        <div class="card-title-row">
+          <span class="card-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+            </svg>
+            Real-Time Audio Signal & RMS Telemetry
+          </span>
+          <div style="display: flex; gap: 4px;">
+            <button class="icon-btn" onclick="resetScope()" data-tooltip="Reset Signal Buffer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+            </button>
+            <button class="icon-btn" id="btnPauseScope" data-tooltip="Pause Signal Capture" onclick="togglePauseScope()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="scope-box">
+          <canvas id="scopeCanvas" width="900" height="140"></canvas>
+          <div class="meters-grid">
+            <div class="meter-item">
+              <div class="meter-label-row">
+                <span>Input RMS</span>
+                <span class="meter-val" id="rmsInVal">-inf dB</span>
+              </div>
+              <div class="meter-bar-track">
+                <div class="meter-bar-fill" id="meterIn"></div>
+              </div>
+            </div>
+
+            <div class="meter-item">
+              <div class="meter-label-row">
+                <span>Output RMS</span>
+                <span class="meter-val" id="rmsOutVal">-inf dB</span>
+              </div>
+              <div class="meter-bar-track">
+                <div class="meter-bar-fill" id="meterOut"></div>
+              </div>
+            </div>
+
+            <div class="meter-item">
+              <div class="meter-label-row">
+                <span>DMA Completed</span>
+                <span class="meter-val" id="dmaFramesVal">0</span>
+              </div>
+              <div class="meter-bar-track">
+                <div class="meter-bar-fill" id="meterDma"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unified Audio Source & Transport Card (WAV Flash Player / Live Mic) -->
+      <div class="card" id="audioSourceCard">
+        <div class="card-title-row">
+          <span class="card-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Audio Source &amp; Transport
+          </span>
+
+          <!-- Segmented Source Mode Switch: WAV Flash vs Live Mic -->
+          <div class="source-segmented-switch">
+            <button class="source-pill-btn active" id="btnSourceWav" onclick="setAudioSourceMode('wav')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+              WAV Flash
+            </button>
+            <button class="source-pill-btn" id="btnSourceMic" onclick="setAudioSourceMode('mic')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              Live Mic
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode 1: WAV Flash Audio Playback -->
+        <div id="sourceSectionWav" style="display: flex; flex-direction: column; gap: 10px;">
+          <div class="field-row">
+            <div style="display: flex; gap: 8px; width: 100%;">
+              <select id="trackSelect" style="flex: 1; min-width: 0;">
+                <option value="">No WAV tracks loaded (Scan to query)</option>
+              </select>
+
+              <!-- Refresh / Scan Tracks Icon-Button -->
+              <button class="icon-btn" id="btnRefreshTracks" data-tooltip="Scan Flash WAV Tracks (tracks)" aria-label="Refresh Tracks" onclick="refreshTracks()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+              </button>
+
+              <!-- Single Play / Stop Kombi-Icon-Button -->
+              <button class="icon-btn" id="playBtn" data-tooltip="Play Selected Track (play <idx>)" aria-label="Play / Stop" onclick="togglePlayStopKombi()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+              </button>
+
+              <!-- Hidden stopBtn reference for test suite assertion compatibility -->
+              <button id="stopBtn" style="display: none;" onclick="stopAudio()"></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode 2: Live Microphone Processing -->
+        <div id="sourceSectionMic" style="display: none; flex-direction: column; gap: 10px;">
+          <div class="field-row">
+            <div style="display: flex; gap: 8px; width: 100%;">
+              <select id="micSelect" style="flex: 1; min-width: 0;" onchange="onMicSelectChanged()">
+                <option value="inmp441">INMP441 Digital Microphone</option>
+                <option value="codec">ES8311 Codec Microphone</option>
+              </select>
+
+              <!-- Live Mic Kombi-Icon-Button -->
+              <button class="icon-btn" id="liveMicBtn" data-tooltip="Start Live Microphone (audio start)" aria-label="Live Microphone" onclick="toggleLiveMicKombi()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="23"></line>
+                  <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="field-row" id="micGainGroup" style="opacity: 0.35;">
+            <div class="field-label-row">
+              <span class="field-label">Codec Analog Preamp Gain (ES8311)</span>
+              <span class="stat-value" id="micGainVal" style="font-size: 11px; color: var(--accent-ice);">0.0 dB</span>
+            </div>
+            <input type="range" id="micGainSlider" min="0" max="42" step="1" value="0" disabled oninput="onMicGainInput(this.value)">
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- RIGHT CONTROLS PANEL: 560px Industrial Standard -->
+    <aside class="controls-panel">
+      <!-- DSP Hardware Algorithms Rack -->
+      <div class="card">
+          <div class="card-title-row">
+            <span class="card-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              </svg>
+              DSP Audio Effects Rack (8 Algorithms)
+            </span>
+
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button class="icon-btn" id="btnExportJson" data-tooltip="Export DSP Settings (JSON)" aria-label="Export JSON" onclick="exportPresetJson()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </button>
+              <button class="icon-btn" id="btnImportJson" data-tooltip="Import DSP Settings (JSON)" aria-label="Import JSON" onclick="importPresetJsonPrompt()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </button>
+              <input type="file" id="jsonFileInput" accept=".json" style="display: none;" onchange="handlePresetFileImport(event)">
+            </div>
+          </div>
+
+          <div class="effects-rack-grid" id="effectGrid">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- Dynamic Active Effect Stage (Sliders in DSP & Presets Tab) -->
+        <div class="effect-stage-card" id="effectStage">
+          <div class="stage-top-bar">
+            <span class="stage-title-text" id="stageEffectName">REVERB</span>
+
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <!-- Master Effect Engine ON / OFF Switch (Active / Bypassed) -->
+              <label class="switch-wrap" data-tooltip="DSP Processing (ON: Active / OFF: Bypassed)">
+                <span class="switch-label" id="stageSwitchLabel">ON</span>
+                <span class="switch">
+                  <input type="checkbox" id="bypassSwitch" checked onchange="onEffectPowerSwitch(this.checked)">
+                  <span class="switch-slider"></span>
+                </span>
+              </label>
+
+              <!-- Master FX Bypass (A/B Dry/Wet) -->
+              <button class="icon-btn" id="btnMasterBypass" data-tooltip="Master FX Bypass (A/B Dry/Wet Auditioning)" aria-label="Master FX Bypass" onclick="toggleMasterBypass()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                </svg>
+              </button>
+
+              <!-- Reset Defaults Icon-Button -->
+              <button class="icon-btn" id="resetParamsBtn" data-tooltip="Reset Parameters to Factory Defaults" aria-label="Reset Defaults" onclick="resetCurrentEffectDefaults()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="1 4 1 10 7 10"></polyline>
+                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Parameters Container (Param Cards or 5-Band Vertical EQ) -->
+          <div class="param-grid" id="stageParametersContainer">
+            <!-- Dynamic parameter sliders or EQ bands -->
+          </div>
+        </div>
+      
+    </aside>
+
+  </div>
+
+  <!-- ========================================================================
+   * STATUS BAR
+   * ======================================================================== -->
+  <footer class="status-bar">
+    <div class="status-left">
+      <div class="status-item">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Disconnected</span>
+      </div>
+    </div>
+    <div class="status-right">
+      <div class="status-item" id="statusInfo">Ready</div>
+    </div>
+  </footer>
+
+  <!-- ========================================================================
+   * 3. COLLAPSIBLE BOTTOM DRAWER CONSOLE
+   * ======================================================================== -->
+  <div class="bottom-terminal-drawer" id="bottomTerminalDrawer">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+        <span>Serial Console · 115200 baud</span>
+      </div>
+      <div class="drawer-actions">
+        <button class="icon-btn" id="btnCopyLog" data-tooltip="Copy Log to Clipboard" aria-label="Copy serial log to clipboard">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="8" y="8" width="13" height="13" rx="2"></rect>
+            <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path>
+          </svg>
+        </button>
+        <button class="icon-btn" id="btnDownloadLog" data-tooltip="Download Log" aria-label="Download serial log">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
+        <button class="icon-btn" id="btnClearLog" data-tooltip="Clear Log" aria-label="Clear serial log" onclick="clearLog()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+        <button class="icon-btn" id="btnCloseDrawer" data-tooltip="Close Drawer" aria-label="Close serial console" onclick="toggleDrawer(false)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="drawer-body" id="terminalLog">
+      <div class="log-entry log-info">[SYS] Audio FX Studio initialized. Connect your ESP32-P4 board via Web Serial (115200 Baud).</div>
+    </div>
+
+    <div class="drawer-input-row">
+      <input type="text" id="cmdInput" placeholder="Type a command and press Enter..." onkeydown="if(event.key==='Enter') sendManualCommand()">
+      <button class="icon-btn" id="cmdSendBtn" data-tooltip="Send Command" aria-label="Send Command" onclick="sendManualCommand()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+   * 4. REFERENCE & SETUP HELP MODAL
+   * ======================================================================== -->
+  <div class="modal-backdrop" id="helpModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <span class="modal-title">Audio FX Studio · Hardware &amp; DSP Reference</span>
+        <button class="icon-btn" id="btnCloseHelp" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Hardware Audio Engine Architecture:</strong>
+          <br>• <strong>Codec DAC/ADC:</strong> ES8311 (I2C 0x18 / I2S0)
+          <br>• <strong>Digital Mic:</strong> INMP441 (I2S1 Stereo)
+          <br>• <strong>Clock Source:</strong> APLL Audio Clock (48 kHz)
+          <br>• <strong>DMA Ping-Pong:</strong> 2× 240 Frames (5.0 ms)
+        </p>
+        <p><strong>Web Serial Engine:</strong> Connect your ESP32-P4 or ESP32-S3 over USB and click the top-right connect icon (115200 Baud). The studio automatically handshakes with <code>TOOL_ID:Strg-Alt-Entf-0x00/esp-idf-audio-fx:console_audio_fx:1</code> and queries device status.</p>
+        <p><strong>8 Hardware DSP Algorithms:</strong>
+          <br>• <code>reverb</code> — 8 comb filters with feedback decay + 4 all-pass phase diffusers.
+          <br>• <code>chorus</code> — Dual-voice modulated stereo delay lines driven by sinusoidal LFOs.
+          <br>• <code>equalizer</code> — 5-band cascade of direct-form II biquad peaking/shelving filters.
+          <br>• <code>delay</code> — Up to 1000 ms circular buffer echo with feedback saturation.
+          <br>• <code>flanger</code> — Resonant sweeping comb filter with positive or negative feedback.
+          <br>• <code>bitcrusher</code> — Variable word-length quantization and sample-and-hold rate decimation.
+          <br>• <code>compressor</code> — Peak/RMS linked stereo detector with soft-knee curve and makeup gain.
+          <br>• <code>limiter</code> — Brickwall limiter with 5 ms lookahead delay and smooth gain release.
+        </p>
+        <p><strong>Console Command Reference:</strong>
+          <br><code>tracks</code> — List flash-resident WAV files
+          <br><code>play &lt;index&gt;</code> — Play specified WAV track
+          <br><code>stop</code> — Stop track playback or live microphone stream
+          <br><code>audio start</code> — Begin live microphone-to-speaker audio loop
+          <br><code>fx select &lt;name&gt;</code> — Switch active hardware DSP algorithm
+          <br><code>fx set &lt;index&gt; &lt;val&gt;</code> — Set specific DSP parameter
+          <br><code>fx bypass on|off</code> — Toggle master effect bypass
+          <br><code>volume &lt;dB&gt;</code> — Adjust DAC speaker volume (-60.0 to 0.0 dB)
+          <br><code>mic_select &lt;codec|inmp441&gt;</code> — Switch active microphone hardware
+          <br><code>mic_gain &lt;dB&gt;</code> — Set ES8311 analog pre-amplifier gain (0.0 to 42.0 dB)
+          <br><code>diag</code> — Query DMA frame counters and real-time RMS signal levels
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+   * 5. JAVASCRIPT: Engine, DSP Metadata & Serial Protocol Driver
+   * ======================================================================== -->
+  <script src="js/state.js"></script>
+  <script src="js/effect-ui.js"></script>
+  <script src="js/playback-controls.js"></script>
+  <script src="js/serial.js"></script>
+  <script src="js/simulator-presets.js"></script>
+  <script src="js/visualizer.js"></script>
+  <script src="js/init.js"></script>
+</body>
+</html>

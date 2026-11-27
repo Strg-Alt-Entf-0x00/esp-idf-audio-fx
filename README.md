@@ -2,7 +2,7 @@
 
 [![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v5.0%2B%20%7C%20v6.0%2B-blue.svg)](https://github.com/espressif/esp-idf)
 [![Target](https://img.shields.io/badge/Target-ESP32%20%7C%20S3%20%7C%20P4-orange.svg)](https://www.espressif.com/)
-[![Web Studio](https://img.shields.io/badge/Studio-Web%20Serial%20Studio-cyan.svg)](tools-web/audio_fx_studio.html)
+[![Web Studio](https://img.shields.io/badge/Studio-Web%20Serial%20Studio-cyan.svg)](tools-web/index.html)
 [![License](https://img.shields.io/badge/License-Non--Commercial%20%2F%20Hobbyist-green.svg)](#license)
 
 Modular, block-based native C++17 audio effects component for ESP-IDF. Provides sample-rate-aware time, modulation, filter, dynamics, and lo-fi effects through an interleaved `float` block API with build-time effect selection.
@@ -28,18 +28,20 @@ All effects accept mono or stereo interleaved floating-point audio at sample rat
 
 ---
 
-## Web Serial FX Studio
+## Audio FX Studio
 
-A zero-install, single-file browser application is included at:
-👉 [`tools-web/audio_fx_studio.html`](tools-web/audio_fx_studio.html)
+A modular, zero-install browser application is included at:
+👉 [`tools-web/index.html`](tools-web/index.html)
 
 ### Features
-- **Plug & Play Web Serial**: Connects directly to ESP32 USB/UART (115200 baud) in Google Chrome, Edge, or Opera.
+- **Plug & Play Web Serial**: Connects to compatible ESP32 firmware over USB/UART (115200 baud) in Google Chrome, Edge, or Opera.
 - **Interactive FX Rack**: Instant selection between all 8 effects, live parameter sliders, and bypass switch.
 - **5-Band Parametric EQ Visualizer**: Real-time vertical sliders and curve control.
 - **Hardware Controls**: Speaker volume (-60 dB to 0 dB), input selection (INMP441 vs ES8311 Codec), and Codec mic gain.
 - **Playback & Live Mic**: Trigger onboard SPIFFS WAV track playback or stream live microphone audio through the DSP rack.
-- **Real-Time Telemetry & Oscilloscope**: Dynamic signal scope canvas, RMS input/output VU meters, and raw command terminal.
+- **Telemetry & Oscilloscope**: Signal scope, RMS input/output meters, DMA counters, and a raw command terminal. Connected-device telemetry is reported by firmware.
+
+When Web Serial is unavailable, the Studio uses an offline simulator with virtual command responses and synthetic telemetry. Simulator values do not describe a connected device, process real audio, or control hardware.
 
 ---
 
